@@ -34,4 +34,3 @@ print(func, ee.get_function_address("foo"))
 ee.close()
 
 llvm.shutdown()
-

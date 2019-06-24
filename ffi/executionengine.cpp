@@ -5,6 +5,7 @@
 
 
 #include "llvm/IR/Module.h"
+#include "llvm/Object/Archive.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
@@ -86,9 +87,24 @@ create_execution_engine(LLVMModuleRef M,
     eb.setErrorStr(&err);
     eb.setEngineKind(llvm::EngineKind::JIT);
 
+    const char* Path = "/usr/lib/llvm-8/lib/clang/8.0.0/lib/linux/libclang_rt.builtins-x86_64.a";
+    auto ArBuf = llvm::MemoryBuffer::getFile(Path);
+
+    // Add compiler-rt
+    if (!ArBuf) {
+      llvm::errs() << "Error loading file!\n";
+      return ee;
+    }
+
     /* EngineBuilder::create loads the current process symbols */
     llvm::ExecutionEngine *engine = eb.create(llvm::unwrap(TM));
-
+    auto Archive = llvm::object::Archive::create(llvm::MemoryBufferRef{*ArBuf.get()});
+    if (!Archive) {
+      llvm::errs() << "Error loading archive!\n";
+      return ee;
+    }
+    llvm::object::OwningBinary<llvm::object::Archive> OwnAr(std::move(Archive.get()), std::move(ArBuf.get()));
+    engine->addArchive(std::move(OwnAr));
 
     if (!engine)
         *OutError = strdup(err.c_str());
